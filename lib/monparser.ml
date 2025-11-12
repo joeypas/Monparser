@@ -1,18 +1,15 @@
 include Monad
 
-type pos = int * int
-type pstring = pos * char list
+module Env = struct
+  type t = int * int [@@deriving show]
+end
 
-module Parser =
-  MakeReader
-    (MaybeM)
-    (struct
-      type t = pstring
-    end)
-    (struct
-      type t = pos
-    end)
+module State = struct
+  type t = Env.t * char list
+end
 
+module StateMonad = StateMonad.Lift (ListM) (State)
+module Parser = ReaderMonad.Make (StateMonad) (Env)
 include Parser
 
 (* infix operators *)
@@ -21,18 +18,22 @@ include Parser
 let implode l = Core.String.of_char_list l
 let explode = Core.String.to_list
 
+type strategy =
+  | Partial
+  | Complete
+
 let parse (p : 'a t) (s : string) =
   let res = p (0, 0) ((0, 0), explode s) in
   match res with
-  | Some (x, (pos, xs)) ->
-    x, "Consumed: " ^ string_of_int (snd pos) ^ ", Remaining: '" ^ implode xs ^ "'"
-  | None -> failwith "Fatal"
+  | (x, (pos, xs)) :: _ ->
+    x, "Consumed: " ^ Env.show pos ^ ", Remaining: '" ^ implode xs ^ "'"
+  | [] -> failwith "Fatal"
 ;;
 
 (* fixpoint combinator *)
 let rec fix f x = f (fix f) x
 
-let newstate ((l, c), xs) : pstring =
+let newstate ((l, c), xs) : State.t =
   let newpos = function
     | '\n' -> l + 1, 0
     | '\t' -> l, ((c / 8) + 1) * 8
@@ -46,7 +47,7 @@ let newstate ((l, c), xs) : pstring =
 let onside (l, c) (dl, dc) = c >= dc || l == dl
 
 let off (p : 'a t) : 'a t =
-  env
+  getenv
   >>= fun (_, dc) ->
   fetch >>= fun ((l, c), _) -> if c = dc then setenv (l, dc) p >>| fun v -> v else fail
 ;;
@@ -55,7 +56,7 @@ let off (p : 'a t) : 'a t =
 let item =
   update newstate
   >>= fun (pos, xs) ->
-  env
+  getenv
   >>= fun defpos ->
   if onside pos defpos
   then (
@@ -65,17 +66,9 @@ let item =
   else fail
 ;;
 
-(* let item : char t = *)
-(*   update List.tl *)
-(*   >>= fun x -> *)
-(*   try return (List.hd x) with *)
-(*   | _ -> fail *)
-(* ;; *)
-
 let sat (f : char -> bool) = item >>= fun x -> if f x then return x else fail
 let char c = sat (fun y -> c = y)
 let both (p : 'a t) (q : 'b t) : ('a * 'b) t = (fun x y -> x, y) <$> p <*> q
-let newl = char '\n' <* (fetch >>= fun ((l, c), _) -> setenv (l + 1, c) env)
 
 let string s =
   let len = String.length s in

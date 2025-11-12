@@ -16,10 +16,12 @@ end
    Functor to add infix operators to a Monad
 *)
 module MonadPlusInfix (M : MonadPlus) = struct
-  let ( >>= ) = M.bind
-  let ( >>| ) = M.map
-  let ( <+> ) = M.plus
-  let ( <$> ) g m = M.map m g
+  include M
+
+  let ( >>= ) = bind
+  let ( >>| ) = map
+  let ( <+> ) = plus
+  let ( <$> ) g m = map m g
   let seq p q = p >>= fun f -> q >>| f
   let ( <*> ) = seq
   let ( *> ) p q = p >>= fun _ -> q
@@ -80,75 +82,88 @@ module MaybeM : MonadPlus with type 'a t = 'a option = struct
   ;;
 end
 
-module MakeState
+module type State = sig
+  type t
+end
+
+module StateUpdate
     (M : MonadPlus)
-    (S : sig
-       type t
+    (S : State)
+    (F : sig
+       val update : (S.t -> S.t) -> S.t M.t
      end) =
 struct
-  type s = S.t
-
-  module StateM : MonadPlus with type 'a t = s -> ('a * s) M.t = struct
-    type 'a t = s -> ('a * s) M.t
-
-    let return v : 'a t = fun s -> M.return (v, s)
-    let fail : 'a t = fun _ -> M.fail
-
-    let bind (m : 'a t) (f : 'a -> 'b t) : 'b t =
-      fun s -> M.bind (m s) (fun (v, s') -> f v s')
-    ;;
-
-    let map (m : 'a t) (g : 'a -> 'b) : 'b t =
-      fun s -> M.map (m s) (fun (v, s') -> g v, s')
-    ;;
-
-    let plus (p : 'a t) (q : 'a t) : 'a t = fun s -> M.plus (p s) (q s)
-  end
-
-  include MonadPlusInfix (StateM)
-  include StateM
-
-  let update (f : s -> s) : 'a t =
-    fun s ->
-    M.return
-      ( s
-      , try f s with
-        | _ -> s )
-  ;;
-
+  let update = F.update
   let set s = update (fun _ -> s)
   let fetch = update (fun x -> x)
 end
 
-module MakeReader
-    (M : MonadPlus)
-    (S1 : sig
-       type t
-     end)
-    (S2 : sig
-       type t
-     end) =
-struct
-  module SM = MakeState (M) (S1)
+module type StateMonad = sig
+  type s
+  type 'a m
 
-  type s = S2.t
+  module S : State with type t = s
+  module StateM : MonadPlus with type 'a t = s -> ('a * s) m
 
-  module ReaderM : MonadPlus with type 'a t = s -> 'a SM.t = struct
-    type 'a t = s -> 'a SM.t
+  val update : (s -> s) -> s StateM.t
+  val set : s -> s StateM.t
+  val fetch : s StateM.t
+end
 
-    let return v = fun _ -> SM.return v
-    let bind m f = fun s -> SM.bind (m s) (fun v -> f v s)
-    let map m g = fun s -> SM.map (m s) (fun v -> g v)
-    let fail = fun _ -> SM.fail
-    let plus p q = fun s -> SM.plus (p s) (q s)
+module StateMonad = struct
+  module Make (M : MonadPlus) (S : State) = struct
+    module StateM : MonadPlus with type 'a t = S.t -> ('a * S.t) M.t = struct
+      type 'a t = S.t -> ('a * S.t) M.t
+
+      let return v = fun s -> M.return (v, s)
+      let fail = fun _ -> M.fail
+      let bind m f = fun s -> M.bind (m s) (fun (v, s') -> f v s')
+      let map m g = fun s -> M.map (m s) (fun (v, s') -> g v, s')
+      let plus p q = fun s -> M.plus (p s) (q s)
+    end
+
+    include MonadPlusInfix (StateM)
+
+    include
+      StateUpdate (StateM) (S)
+        (struct
+          let update f = fun s -> M.return (s, f s)
+        end)
   end
 
-  include MonadPlusInfix (ReaderM)
-  include ReaderM
+  module Lift (M : MonadPlus) (S : State) :
+    StateMonad with type 'a m = 'a M.t and type s = S.t = struct
+    type s = S.t
+    type 'a m = 'a M.t
 
-  let env : 'a t = fun s -> SM.return s
-  let setenv s m = fun _ -> m s
-  let update (f : S1.t -> S1.t) : S1.t t = fun _ -> SM.update f
-  let set s = update (fun _ -> s)
-  let fetch = update (fun x -> x)
+    module S = S
+    include Make (M) (S)
+  end
+end
+
+module ReaderMonad = struct
+  module Make (ST : StateMonad) (Env : State) = struct
+    module ReaderM : MonadPlus with type 'a t = Env.t -> 'a ST.StateM.t = struct
+      open ST
+
+      type 'a t = Env.t -> 'a StateM.t
+
+      let return v = fun _ -> StateM.return v
+      let bind m f = fun s -> StateM.bind (m s) (fun v -> f v s)
+      let map m g = fun s -> StateM.map (m s) (fun v -> g v)
+      let fail = fun _ -> StateM.fail
+      let plus p q = fun s -> StateM.plus (p s) (q s)
+    end
+
+    include MonadPlusInfix (ReaderM)
+
+    let getenv : Env.t t = fun s -> ST.StateM.return s
+    let setenv (s : Env.t) (m : 'a t) : 'a t = fun _ -> m s
+
+    include
+      StateUpdate (ReaderM) (ST.S)
+        (struct
+          let update f = fun _ -> ST.update f
+        end)
+  end
 end
