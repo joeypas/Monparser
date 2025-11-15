@@ -2,8 +2,9 @@
    This is our base monad type
    (Monad and MonadOfPlus combined)
 *)
+
 module type MonadPlus = sig
-  type 'a t
+  type +'a t
 
   val return : 'a -> 'a t
   val fail : 'a t
@@ -103,7 +104,7 @@ module type StateMonad = sig
   type 'a m
 
   module S : State with type t = s
-  module StateM : MonadPlus with type 'a t = s -> ('a * s) m
+  module StateM : MonadPlus
 
   val update : (s -> s) -> s StateM.t
   val set : s -> s StateM.t

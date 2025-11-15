@@ -1,15 +1,16 @@
-include Monad
+include Monads
 
 module Env = struct
   type t = int * int [@@deriving show]
 end
 
 module State = struct
-  type t = Env.t * char list
+  type t = Env.t * char list [@@deriving show]
 end
 
-module StateMonad = StateMonad.Lift (ListM) (State)
-module Parser = ReaderMonad.Make (StateMonad) (Env)
+(* module StateMonad = StateMonad.Lift (MessageMaybe) (State) *)
+(* module Parser = ReaderMonad.Make (StateMonad) (Env) *)
+module Parser = StateMonad.Make (ListM) (State)
 include Parser
 
 (* infix operators *)
@@ -23,11 +24,11 @@ type strategy =
   | Complete
 
 let parse (p : 'a t) (s : string) =
-  let res = p (0, 0) ((0, 0), explode s) in
-  match res with
+  let value = p ((0, 0), explode s) in
+  match value with
   | (x, (pos, xs)) :: _ ->
     x, "Consumed: " ^ Env.show pos ^ ", Remaining: '" ^ implode xs ^ "'"
-  | [] -> failwith "Fatal"
+  | [] -> failwith "Error"
 ;;
 
 (* fixpoint combinator *)
@@ -44,26 +45,34 @@ let newstate ((l, c), xs) : State.t =
   | _ -> (l, c + 1), []
 ;;
 
-let onside (l, c) (dl, dc) = c >= dc || l == dl
+(* let onside (l, c) (dl, dc) = c >= dc || l == dl *)
 
-let off (p : 'a t) : 'a t =
-  getenv
-  >>= fun (_, dc) ->
-  fetch >>= fun ((l, c), _) -> if c = dc then setenv (l, dc) p >>| fun v -> v else fail
-;;
+(* let off (p : 'a t) : 'a t = *)
+(*   getenv *)
+(*   >>= fun (_, dc) -> *)
+(*   fetch >>= fun ((l, c), _) -> if c = dc then setenv (l, dc) p >>| fun v -> v else fail *)
+(* ;; *)
 
 (* Single item parsers *)
+(* let item = *)
+(*   update newstate *)
+(*   >>= fun (pos, xs) -> *)
+(*   getenv *)
+(*   >>= fun defpos -> *)
+(*   if onside pos defpos *)
+(*   then ( *)
+(*     match xs with *)
+(*     | x :: _ -> return x *)
+(*     | _ -> fail) *)
+(*   else fail *)
+(* ;; *)
+
 let item =
   update newstate
-  >>= fun (pos, xs) ->
-  getenv
-  >>= fun defpos ->
-  if onside pos defpos
-  then (
-    match xs with
-    | x :: _ -> return x
-    | _ -> fail)
-  else fail
+  >>= fun (_, xs) ->
+  match xs with
+  | x :: _ -> return x
+  | _ -> fail
 ;;
 
 let sat (f : char -> bool) = item >>= fun x -> if f x then return x else fail
@@ -80,9 +89,9 @@ let string s =
 let many (p : 'a t) = fix (fun m -> List.cons <$> p <*> m <+> return [])
 let many1 (p : 'a t) : 'a list t = List.cons <$> p <*> many p
 
-let many1_offside (p : 'a t) : 'a list t =
-  fetch >>= fun (pos, _) -> setenv pos (many1 (off p)) >>| fun vs -> vs
-;;
+(* let many1_offside (p : 'a t) : 'a list t = *)
+(*   fetch >>= fun (pos, _) -> setenv pos (many1 (off p)) >>| fun vs -> vs *)
+(* ;; *)
 
 let sepby1 p sep : 'a list t =
   (fun x xs -> x :: xs) <$> p <*> many ((fun _ y -> y) <$> sep <*> p)
