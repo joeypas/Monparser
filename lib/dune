@@ -3,5 +3,5 @@
  (name monparser)
  (libraries core)
  (preprocess
-   (pps ppx_deriving.show))
+   (pps ppx_deriving.show ppx_let))
  )

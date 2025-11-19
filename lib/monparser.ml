@@ -1,5 +1,3 @@
-include Monads
-
 module Env = struct
   type t = int * int [@@deriving show]
 end
@@ -10,10 +8,10 @@ end
 
 (* module StateMonad = StateMonad.Lift (MessageMaybe) (State) *)
 (* module Parser = ReaderMonad.Make (StateMonad) (Env) *)
-module Parser = StateMonad.Make (ListM) (State)
+module Parser = Statem.Make (Listm.S) (State)
 include Parser
+include Infix
 
-(* infix operators *)
 (* State helpers *)
 
 let implode l = Core.String.of_char_list l
@@ -77,7 +75,6 @@ let item =
 
 let sat (f : char -> bool) = item >>= fun x -> if f x then return x else fail
 let char c = sat (fun y -> c = y)
-let both (p : 'a t) (q : 'b t) : ('a * 'b) t = (fun x y -> x, y) <$> p <*> q
 
 let string s =
   let len = String.length s in
@@ -94,16 +91,16 @@ let many1 (p : 'a t) : 'a list t = List.cons <$> p <*> many p
 (* ;; *)
 
 let sepby1 p sep : 'a list t =
-  (fun x xs -> x :: xs) <$> p <*> many ((fun _ y -> y) <$> sep <*> p)
+  map2 (fun x xs -> x :: xs) p (many (map2 (fun _ y -> y) sep p))
 ;;
 
 let take_while1 f : string t = (fun l -> implode l) <$> many1 (sat f)
 
 let chainl1 p op =
-  let rec rest acc = (fun f y -> f acc y) <$> op <*> p >>= rest <+> return acc in
+  let rec rest acc = map2 (fun f y -> f acc y) op p >>= rest <+> return acc in
   p >>= fun init -> rest init
 ;;
 
 let rec chainr1 (p : 'a t) (op : ('a -> 'a -> 'a) t) =
-  p >>= fun x -> (fun f y -> f x y) <$> op <*> chainr1 p op <+> return x
+  p >>= fun x -> map2 (fun f y -> f x y) op (chainr1 p op) <+> return x
 ;;
