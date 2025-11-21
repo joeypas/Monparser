@@ -1,4 +1,4 @@
-module S : Monad.S = struct
+module S : Monad.S with type 'a t = 'a option = struct
   module Inner : Monad.T with type 'a t = 'a option = struct
     type 'a t = 'a option
 

@@ -1,9 +1,19 @@
 module type T = sig
   type 'a t
 
+  (** [return v] lifts [v] to the monadic context *)
   val return : 'a -> 'a t
+
+  (** [fail] is the empty or zero value *)
   val fail : 'a t
+
+  (**
+    [bind m f]  applies [f] to [m].
+
+    [f] is a function that accepts a value as input and returns a 'boxed' value
+  *)
   val bind : 'a t -> ('a -> 'b t) -> 'b t
+
   val map : 'a t -> ('a -> 'b) -> 'b t
   val plus : 'a t -> 'a t -> 'a t
 end
@@ -18,12 +28,25 @@ module type S = sig
   val both : 'a t -> 'b t -> ('a * 'b) t
 
   module Infix : sig
+    (** Bind *)
     val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
+
+    (** Map *)
     val ( >>| ) : 'a t -> ('a -> 'b) -> 'b t
+
+    (** Plus *)
     val ( <+> ) : 'a t -> 'a t -> 'a t
+
+    (** Map *)
     val ( <$> ) : ('a -> 'b) -> 'a t -> 'b t
+
+    (** Seq *)
     val ( <*> ) : ('a -> 'b) t -> 'a t -> 'b t
+
+    (** Ignore Left *)
     val ( *> ) : 'a t -> 'b t -> 'b t
+
+    (** Ignore Right *)
     val ( <* ) : 'a t -> 'b t -> 'a t
   end
 
