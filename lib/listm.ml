@@ -1,5 +1,5 @@
 module S : Monad.S with type 'a t = 'a list = struct
-  module Inner : Monad.T with type 'a t = 'a list = struct
+  module Inner = struct
     type 'a t = 'a list
 
     let return v = [ v ]

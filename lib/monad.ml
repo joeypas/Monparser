@@ -1,20 +1,24 @@
 module type T = sig
+  (** ['a t] represents a monad with type ['a]. *)
   type 'a t
 
-  (** [return v] lifts [v] to the monadic context *)
+  (** [return v] lifts [v] to the monadic context. *)
   val return : 'a -> 'a t
 
-  (** [fail] is the empty or zero value *)
+  (** [fail] is the empty or zero value. *)
   val fail : 'a t
 
   (**
-    [bind m f]  applies [f] to [m].
+    [bind m f] applies [f] to [m].
 
-    [f] is a function that accepts a value as input and returns a 'boxed' value
+    [f] is a function that accepts a value and returns a monad.
   *)
   val bind : 'a t -> ('a -> 'b t) -> 'b t
 
+  (** [map m f] applies [f] to [m]. *)
   val map : 'a t -> ('a -> 'b) -> 'b t
+
+  (** [plus p q] runs [p] and if it failed, runs [q]. *)
   val plus : 'a t -> 'a t -> 'a t
 end
 
@@ -28,41 +32,21 @@ module type S = sig
   val both : 'a t -> 'b t -> ('a * 'b) t
 
   module Infix : sig
-    (** Bind *)
     val ( >>= ) : 'a t -> ('a -> 'b t) -> 'b t
-
-    (** Map *)
     val ( >>| ) : 'a t -> ('a -> 'b) -> 'b t
-
-    (** Plus *)
     val ( <+> ) : 'a t -> 'a t -> 'a t
-
-    (** Map *)
     val ( <$> ) : ('a -> 'b) -> 'a t -> 'b t
-
-    (** Seq *)
     val ( <*> ) : ('a -> 'b) t -> 'a t -> 'b t
 
-    (** Ignore Left *)
+    (** [p *> q] is the same as [p >>= fun _ -> q] *)
     val ( *> ) : 'a t -> 'b t -> 'b t
-
-    (** Ignore Right *)
+    (** [p <* q] is the same as [p >>= fun r -> q >>| r] *)
     val ( <* ) : 'a t -> 'b t -> 'a t
-  end
-
-  module Let_syntax : sig
-    module Let_syntax : sig
-      val return : 'a -> 'a t
-      val map : 'a t -> f:('a -> 'b) -> 'b t
-      val bind : 'a t -> f:('a -> 'b t) -> 'b t
-      val both : 'a t -> 'b t -> ('a * 'b) t
-      val map2 : 'a t -> 'b t -> f:('a -> 'b -> 'c) -> 'c t
-      val map3 : 'a t -> 'b t -> 'c t -> f:('a -> 'b -> 'c -> 'd) -> 'd t
-      val map4 : 'a t -> 'b t -> 'c t -> 'd t -> f:('a -> 'b -> 'c -> 'd -> 'e) -> 'e t
-    end
   end
 end
 
+
+(** Functor building a monad structure *)
 module Make (M : T) : S with type 'a t = 'a M.t = struct
   include M
 
@@ -83,18 +67,6 @@ module Make (M : T) : S with type 'a t = 'a M.t = struct
     let ( <$> ) g m = map m g
     let ( <*> ) = seq
     let ( *> ) p q = p >>= fun _ -> q
-    let ( <* ) p q = p >>= fun r -> (fun _ -> r) <$> q
-  end
-
-  module Let_syntax = struct
-    module Let_syntax = struct
-      let return = return
-      let map m ~f = map m f
-      let bind m ~f = bind m f
-      let both = both
-      let map2 m1 m2 ~f = map2 f m1 m2
-      let map3 m1 m2 m3 ~f = map3 f m1 m2 m3
-      let map4 m1 m2 m3 m4 ~f = map4 f m1 m2 m3 m4
-    end
+    let ( <* ) p q = p >>= fun r -> q >>| fun _ -> r
   end
 end

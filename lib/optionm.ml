@@ -1,5 +1,5 @@
 module S : Monad.S with type 'a t = 'a option = struct
-  module Inner : Monad.T with type 'a t = 'a option = struct
+  module Inner = struct
     type 'a t = 'a option
 
     let return v = Some v
@@ -11,7 +11,11 @@ module S : Monad.S with type 'a t = 'a option = struct
       | None -> None
     ;;
 
-    let map m f = Option.map f m
+    let map m f =
+      match m with
+      | Some x -> Some (f x)
+      | None -> None
+    ;;
 
     let plus p q =
       match p with
