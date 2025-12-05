@@ -6,7 +6,7 @@ end
 
 module Parser = Statem.Make (Optionm.S) (State)
 include Parser
-include Infix
+open Infix
 
 (* State helpers *)
 
