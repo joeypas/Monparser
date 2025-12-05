@@ -1,11 +1,15 @@
 
-(** type of the state *)
+(** type of the state/input *)
 type s
 
 (** type of the base monad (list, option, ...) *)
 type 'a m
 
-(** type of the parser *)
+(**
+  type of the parser
+
+  'a parser = input -> ('a * input')
+*)
 type 'a t
 
 (** [return v] lifts [v] to the monadic context. *)
