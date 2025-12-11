@@ -6,7 +6,7 @@ module State = struct
   type t = Env.t * char list [@@deriving show]
 end
 
-module StateMonad = Statem.Make (Listm.S) (State)
+module StateMonad = Statem.Make (Listm) (State)
 module Parser = Readerm.Make (StateMonad) (Env)
 include Parser
 include Infix
@@ -15,18 +15,6 @@ include Infix
 
 let implode l = Core.String.of_char_list l
 let explode = Core.String.to_list
-
-type strategy =
-  | Partial
-  | Complete
-
-let parse (p : 'a t) (s : string) =
-  let value = p (0, 0) ((0, 0), explode s) in
-  match value with
-  | (x, (pos, xs)) :: _ ->
-    x, "Consumed: " ^ Env.show pos ^ ", Remaining: '" ^ implode xs ^ "'"
-  | [] -> failwith "Error"
-;;
 
 (* fixpoint combinator *)
 let rec fix f x = f (fix f) x
@@ -63,14 +51,6 @@ let item =
     | _ -> fail)
   else fail
 ;;
-
-(* let item = *)
-(*   update newstate *)
-(*   >>= fun (_, xs) -> *)
-(*   match xs with *)
-(*   | x :: _ -> return x *)
-(*   | _ -> fail *)
-(* ;; *)
 
 let sat (f : char -> bool) = item >>= fun x -> if f x then return x else fail
 let char c = sat (fun y -> c = y)

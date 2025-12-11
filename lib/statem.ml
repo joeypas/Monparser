@@ -3,7 +3,7 @@ module type StateType = sig
 end
 
 module StateUpdate
-    (M : Monad.S)
+    (M : Monad.T)
     (S : StateType)
     (F : sig
        val update : (S.t -> S.t) -> S.t M.t
@@ -25,9 +25,9 @@ module type S = sig
   val fetch : s t
 end
 
-module Make (M : Monad.S) (T : StateType) : S with type s = T.t and type 'a m = 'a M.t =
-struct
-  type s = T.t
+module Make (M : Monad.T) (State : StateType) :
+  S with type s = State.t and type 'a m = 'a M.t = struct
+  type s = State.t
   type 'a m = 'a M.t
 
   module Inner = struct
@@ -43,9 +43,7 @@ struct
   module StateM : Monad.S with type 'a t = s -> ('a * s) m = Monad.Make (Inner)
   include StateM
 
-  include
-    StateUpdate (StateM) (T)
-      (struct
-        let update f = fun s -> M.return (s, f s)
-      end)
+  let update f = fun s -> M.return (s, f s)
+  let set s = update (fun _ -> s)
+  let fetch = update (fun x -> x)
 end

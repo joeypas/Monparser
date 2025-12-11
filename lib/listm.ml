@@ -1,18 +1,22 @@
-module S : Monad.S with type 'a t = 'a list = struct
-  module Inner = struct
-    type 'a t = 'a list
+type 'a t = 'a list
 
-    let return v = [ v ]
-    let fail = []
-    let bind m f = List.concat (List.map f m)
-    let map m f = List.map f m
+let return v = [ v ]
+let fail = []
 
-    let plus p q =
-      match p with
-      | [] -> q
-      | x :: xs -> x :: (xs @ q)
-    ;;
-  end
+let rec bind m f =
+  match m with
+  | [] -> []
+  | x :: xs -> f x @ bind xs f
+;;
 
-  include Monad.Make (Inner)
-end
+let rec map m f =
+  match m with
+  | [] -> []
+  | x :: xs -> f x :: map xs f
+;;
+
+let plus p q =
+  match p with
+  | [] -> q
+  | x :: xs -> x :: (xs @ q)
+;;

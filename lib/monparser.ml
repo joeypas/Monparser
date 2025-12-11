@@ -4,7 +4,7 @@ module State = struct
   type t = pos * char list [@@deriving show]
 end
 
-module Parser = Statem.Make (Optionm.S) (State)
+module Parser = Statem.Make (Optionm) (State)
 include Parser
 open Infix
 
@@ -32,10 +32,10 @@ let newstate (((l, c), xs) : s) : s =
 (** [item] returns the next character and updates the state *)
 let item : char t =
   update newstate
-  >>= fun (_, xs) ->
+  >>| fun (_, xs) ->
   match xs with
-  | x :: _ -> return x
-  | _ -> fail
+  | x :: _ -> x
+  | _ -> failwith "EOF"
 ;;
 
 (** [sat f] parses any character when [f] returns [true] and returns it *)

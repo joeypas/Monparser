@@ -31,8 +31,13 @@ val map : 'a t -> ('a -> 'b) -> 'b t
 (** [plus p q] runs [p] and if it failed, runs [q]. *)
 val plus : 'a t -> 'a t -> 'a t
 
+(** [update f] applies the function [f] to the state *)
 val update : (s -> s) -> s t
+
+(** [set s] sets the state to [s] *)
 val set : s -> s t
+
+(** [fetch] returns the current state *)
 val fetch : s t
 
 (* [item] consumes a single character from the input and returns it *)

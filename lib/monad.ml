@@ -1,3 +1,18 @@
+module type Base = sig
+  type 'a t
+
+  (** [return v] lifts [v] to the monadic context. *)
+  val return : 'a -> 'a t
+
+  (**
+    [bind m f] applies [f] to [m].
+
+    [f] is a function that accepts a value and returns a monad.
+  *)
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+end
+
+
 module type T = sig
   (** ['a t] represents a monad with type ['a]. *)
   type 'a t
